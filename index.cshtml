@@ -1,0 +1,130 @@
+    <style>
+        /* 調整進度條高度 */
+        #progressModal .progress {
+            height: 2rem; /* 這裡可以改成 2rem、3rem 看喜好 */
+            border: 1px solid #929292; /* 邊框顏色與粗細 */
+            border-radius: 8px; /* 圓角 */
+            background-color: #e9ecef; /* 背景色，讓未填滿的部分像空槽 */
+            overflow: hidden; /* 讓進度條顏色不超出邊框 */
+        }
+
+        #progressModal .progress-bar {
+            font-size: 1.2rem; /* 讓文字跟著變大 */
+            line-height: 2.5rem; /* 垂直置中文字 */
+            border-radius: 6px; /* 與外框一致 */
+        }
+
+        /* 移除 Modal Header 下框線 */
+        #progressModal .modal-header {
+            border-bottom: none;
+        }
+
+        /* 移除 Modal Footer 上框線 */
+        #progressModal .modal-footer {
+            border-top: none;
+        }
+    </style>
+
+    @* 進度條測試 *@
+    <button id="startBtn" class="btn btn-primary">開始執行</button>
+    <div class="modal fade" id="progressModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="progressModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary">
+                    <h5 class="modal-title text-light" id="progressModalLabel">轉檔進度執行中...</h5>
+                </div>
+                <div class="modal-body">
+                    <p id="progressMsg" class="mb-3 text-center fs-4">尚未開始</p>
+                    <div class="progress mb-2">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar" style="width:0%">
+                            0%
+                        </div>
+                    </div>
+                    <!-- 時間同一行 -->
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-bolder" style="color: darkred;">開始時間：<span id="startTime">-</span></span>
+                        <span class="fw-bolder" style="color: darkred;">結束時間：<span id="endTime">-</span></span>
+                    </div>
+                </div>
+                <div class="modal-footer py-1">
+                    <button type="button" id="closeModalBtn" class="btn btn-sm btn-secondary" data-bs-dismiss="modal" disabled>關閉</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+let currentAction = '';
+// 轉檔時間格式化
+function formatTime(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString('zh-TW', { hour12: false });
+}
+const progressModal = new bootstrap.Modal(document.getElementById('progressModal'));
+$('#startBtn').click(function () {
+    progressModal.show(); // 開啟 Modal
+
+    // 重置 UI
+    $('#progressBar')
+        .removeClass('bg-success')
+        .addClass('progress-bar-striped progress-bar-animated')
+        .css('width', '0%')
+        .text('0%');
+    $('#progressMsg').text('尚未開始');
+    $('#startTime').text('-');
+    $('#endTime').text('-');
+    $('#closeModalBtn').prop('disabled', true);
+
+    $.ajax({
+        url: '@Url.Action("StartJob", "Progress")',
+        type: 'POST',
+        success: function (res) {
+            var jobId = res.JobId; // 注意大小寫
+
+            var timer = setInterval(function () {
+                $.ajax({
+                    url: '@Url.Action("GetProgress", "Progress")',
+                    type: 'GET',
+                    data: { jobId: jobId },
+                    success: function (data) {
+                        $('#progressBar')
+                            .css('width', data.Percent + '%')
+                            .text(data.Percent + '%');
+                        $('#progressMsg').text(data.Message);
+
+                        // 更新開始時間
+                        if (data.StartTime) {
+                            $('#startTime').text(formatTime(data.StartTime));
+                        }
+                        // 更新結束時間
+                        if (data.EndTime) {
+                            $('#endTime').text(formatTime(data.EndTime));
+                        }
+
+                        if (data.Percent >= 100) {
+                            clearInterval(timer);
+
+                            // 完成效果
+                            $('#progressBar')
+                                .removeClass('progress-bar-striped progress-bar-animated')
+                                .addClass('bg-success')
+                                .text('完成');
+                            $('#closeModalBtn').prop('disabled', false);
+                        }
+                    },
+                    error: function (xhr, status, err) {
+                        toastr.error('查詢進度失敗:', err);
+                        clearInterval(timer);
+                        $('#closeModalBtn').prop('disabled', false);
+                    }
+                });
+            }, 1000);
+        },
+        error: function (xhr, status, err) {
+            toastr.error('啟動任務失敗:', err);
+            $('#closeModalBtn').prop('disabled', false);
+        }
+    });
+});
+    </script>                      
